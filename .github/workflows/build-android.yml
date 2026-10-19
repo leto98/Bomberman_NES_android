@@ -14,6 +14,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Prepare Godot Android environment
+        run: |
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          cp -a /root/.local/share/godot/export_templates/4.4.1.stable/. "$HOME/.local/share/godot/export_templates/4.4.1.stable/"
+          mkdir -p "$HOME/.config/godot"
+          cp /root/.config/godot/editor_settings-4.4.tres "$HOME/.config/godot/editor_settings-4.4.tres"
+          mkdir -p "$HOME/.android"
+          cp /root/debug.keystore "$HOME/.android/debug.keystore"
+          sed -i 's@/root/debug.keystore@'$HOME'/.android/debug.keystore@g' "$HOME/.config/godot/editor_settings-4.4.tres"
       - name: Create build directory
         run: mkdir -p build
       - name: Import project resources
