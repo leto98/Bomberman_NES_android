@@ -84,6 +84,9 @@ jobs:
           mkdir -p releases
           cp build/Bomberman8Bit.apk releases/Bomberman8Bit.apk
 
+      - name: Mark repository as safe for Git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Commit latest APK to main
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
