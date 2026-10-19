@@ -74,13 +74,22 @@ func _input(event: InputEvent) -> void:
 					game_state = "title"
 				queue_redraw()
 				return
-			if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER and game_state == "playing":
+			if event.keycode == KEY_SPACE:
 				if game_state == "playing":
 					_place_bomb()
 				elif game_state == "title":
 					_start_game()
 				elif game_state == "paused":
 					game_state = "playing"
+				queue_redraw()
+				return
+			if event.keycode == KEY_ENTER:
+				if game_state == "title":
+					_start_game()
+				elif game_state == "paused":
+					game_state = "playing"
+				elif game_state == "playing":
+					_place_bomb()
 				queue_redraw()
 				return
 			if event.keycode == KEY_P:
