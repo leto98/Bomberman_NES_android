@@ -11,32 +11,70 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.4.1
+    env:
+      ANDROID_HOME: /opt/android-sdk
+      ANDROID_SDK_ROOT: /opt/android-sdk
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Prepare Godot Android environment
+
+      - name: Install Android SDK packages required by Godot 4.4
+        run: |
+          apt-get update
+          apt-get install -y curl unzip openjdk-17-jdk
+          mkdir -p /opt/android-sdk/cmdline-tools /tmp/android-cli
+          curl -fL --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/android-cli.zip
+          unzip -q /tmp/android-cli.zip -d /tmp/android-cli
+          mkdir -p /opt/android-sdk/cmdline-tools/latest
+          cp -a /tmp/android-cli/cmdline-tools/. /opt/android-sdk/cmdline-tools/latest/
+          yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk --licenses
+          /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk \
+            "platform-tools" \
+            "build-tools;34.0.0" \
+            "platforms;android-34" \
+            "cmdline-tools;latest" \
+            "cmake;3.10.2.4988404" \
+            "ndk;23.2.8568313"
+          echo "=== Installed SDK packages ==="
+          /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk --list_installed
+          echo "=== Java version ==="
+          java -version
+
+      - name: Prepare Godot export templates and signing key
         run: |
           mkdir -p "$HOME/.local/share/godot/export_templates/4.4.1.stable"
           cp -a /root/.local/share/godot/export_templates/4.4.1.stable/. "$HOME/.local/share/godot/export_templates/4.4.1.stable/"
-          mkdir -p "$HOME/.config/godot"
+          mkdir -p "$HOME/.config/godot" "$HOME/.android"
           cp /root/.config/godot/editor_settings-4.4.tres "$HOME/.config/godot/editor_settings-4.4.tres"
-          mkdir -p "$HOME/.android"
           cp /root/debug.keystore "$HOME/.android/debug.keystore"
-          sed -i 's@/root/debug.keystore@'$HOME'/.android/debug.keystore@g' "$HOME/.config/godot/editor_settings-4.4.tres"
+          sed -i "s@/usr/lib/android-sdk@/opt/android-sdk@g" "$HOME/.config/godot/editor_settings-4.4.tres"
+          sed -i "s@/root/debug.keystore@$HOME/.android/debug.keystore@g" "$HOME/.config/godot/editor_settings-4.4.tres"
           echo "=== Android SDK and Java settings ==="
           grep -Ei 'android|keystore|jdk|java' "$HOME/.config/godot/editor_settings-4.4.tres" || true
-          echo "=== Debug keystore ==="
-          ls -l "$HOME/.android/debug.keystore"
-          echo "=== Export templates ==="
-          find "$HOME/.local/share/godot/export_templates/4.4.1.stable" -maxdepth 1 -type f -printf '%f (%s bytes)\n'
-          echo "=== Android SDK directories ==="
-          ls -ld /usr/lib/android-sdk /usr/lib/android-sdk/build-tools /usr/lib/jvm 2>&1 || true
+          echo "=== Required SDK components ==="
+          test -x /opt/android-sdk/platform-tools/adb
+          test -d /opt/android-sdk/build-tools/34.0.0
+          test -d /opt/android-sdk/platforms/android-34
+          test -f "$HOME/.android/debug.keystore"
+          test -f "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_debug.apk"
+          test -f "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_release.apk"
+
       - name: Create build directory
         run: mkdir -p build
+
       - name: Import project resources
         run: godot --headless --editor --path . --quit
-      - name: Export Android APK with verbose diagnostics
+
+      - name: Export Android APK
         run: godot --headless --verbose --path . --export-debug "Android" build/Bomberman8Bit.apk
+
+      - name: Verify APK
+        run: |
+          test -s build/Bomberman8Bit.apk
+          ls -lh build/Bomberman8Bit.apk
+          file build/Bomberman8Bit.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
