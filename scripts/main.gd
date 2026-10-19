@@ -489,11 +489,34 @@ func _draw_header() -> void:
 	draw_rect(Rect2(0, 0, 480, 66), Color("#17283a"))
 	draw_string(ThemeDB.fallback_font, Vector2(20, 30), "BOMBERMAN", HORIZONTAL_ALIGNMENT_LEFT, -1, 23, Color("#ffe66d"))
 	if game_state == "playing" or game_state == "paused" or game_state == "won" or game_state == "lost":
-		draw_string(ThemeDB.fallback_font, Vector2(20, 52), "LEVEL %d/10  LIVES %d" % [level, lives], HORIZONTAL_ALIGNMENT_LEFT, 220, 11, Color("#a9c6d4"))
+		draw_string(ThemeDB.fallback_font, Vector2(20, 52), "LEVEL %d/10" % level, HORIZONTAL_ALIGNMENT_LEFT, 220, 11, Color("#a9c6d4"))
 		draw_string(ThemeDB.fallback_font, Vector2(300, 34), "SCORE %04d" % score, HORIZONTAL_ALIGNMENT_LEFT, 105, 12, Color("#ffffff"))
+		for i in range(3):
+			_draw_life_heart(Vector2(350 + i * 23, 51), i < lives)
 		draw_rect(Rect2(414, 8, 52, 48), Color("#254454"))
 		draw_rect(Rect2(418, 12, 44, 40), Color("#347f9c"))
 		draw_string(ThemeDB.fallback_font, Vector2(429, 38), "II", HORIZONTAL_ALIGNMENT_LEFT, 30, 19, Color.WHITE)
+
+
+func _draw_life_heart(center: Vector2, is_alive: bool) -> void:
+	# Tiny shaded hearts sit beneath the score; lost lives remain dimmed.
+	var heart_color := Color("#f04462") if is_alive else Color("#465362")
+	var shadow_color := Color("#241b2a") if is_alive else Color("#303b48")
+	for offset in [Vector2(0, 1)]:
+		draw_circle(center + offset + Vector2(-4, -2), 4.5, shadow_color)
+		draw_circle(center + offset + Vector2(4, -2), 4.5, shadow_color)
+		draw_colored_polygon(PackedVector2Array([
+			center + offset + Vector2(-8, -1),
+			center + offset + Vector2(8, -1),
+			center + offset + Vector2(0, 8)
+		]), shadow_color)
+	draw_circle(center + Vector2(-4, -3), 4, heart_color)
+	draw_circle(center + Vector2(4, -3), 4, heart_color)
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-8, -2),
+		center + Vector2(8, -2),
+		center + Vector2(0, 7)
+	]), heart_color)
 
 func _draw_title() -> void:
 	draw_rect(Rect2(24, 94, 432, 176), Color("#17283a"))
