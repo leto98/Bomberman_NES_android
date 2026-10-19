@@ -143,7 +143,7 @@ func _explode(index: int) -> void:
 	var affected: Array[Vector2i] = [cell]
 	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 		for distance in range(1, 3):
-			var p := cell + dir * distance
+			var p: Vector2i = cell + dir * distance
 			if p.x < 0 or p.y < 0 or p.x >= COLS or p.y >= ROWS or walls[p.y][p.x]:
 				break
 			affected.append(p)
