@@ -63,42 +63,16 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey:
-		if event.pressed and not event.echo:
-			if event.keycode == KEY_ESCAPE or event.keycode == KEY_BACK:
-				if game_state == "playing":
-					_pause_game()
-				elif game_state == "paused":
-					game_state = "playing"
-				else:
-					game_state = "title"
-				queue_redraw()
-				return
-			if event.keycode == KEY_SPACE:
-				if game_state == "playing":
-					_place_bomb()
-				elif game_state == "title":
-					_start_game()
-				elif game_state == "paused":
-					game_state = "playing"
-				queue_redraw()
-				return
-			if event.keycode == KEY_ENTER:
-				if game_state == "title":
-					_start_game()
-				elif game_state == "paused":
-					game_state = "playing"
-				elif game_state == "playing":
-					_place_bomb()
-				queue_redraw()
-				return
-			if event.keycode == KEY_P:
-				if game_state == "playing":
-					_pause_game()
-				elif game_state == "paused":
-					game_state = "playing"
-				queue_redraw()
-				return
+	# Android system Back key only; gameplay itself uses touchscreen controls.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_BACK:
+		if game_state == "playing":
+			_pause_game()
+		elif game_state == "paused":
+			game_state = "title"
+			queue_redraw()
+		else:
+			game_state = "title"
+			queue_redraw()
 		return
 
 	if event is InputEventScreenTouch:
@@ -109,25 +83,6 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag:
 		if game_state == "playing":
 			held_touch_dir = _direction_at(event.position)
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			_handle_pointer(event.position, false)
-		else:
-			held_touch_dir = Vector2i.ZERO
-
-func _get_held_direction() -> Vector2i:
-	if held_touch_dir != Vector2i.ZERO:
-		return held_touch_dir
-	if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
-		return Vector2i.LEFT
-	if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
-		return Vector2i.RIGHT
-	if Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W):
-		return Vector2i.UP
-	if Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S):
-		return Vector2i.DOWN
-	return Vector2i.ZERO
-
 func _handle_pointer(pos: Vector2, is_touch: bool) -> void:
 	if game_state != "playing":
 		_handle_menu_pointer(pos)
@@ -143,7 +98,8 @@ func _handle_pointer(pos: Vector2, is_touch: bool) -> void:
 	var direction := _direction_at(pos)
 	if direction != Vector2i.ZERO:
 		held_touch_dir = direction
-		move_clock = MOVE_DELAY
+		# Move once immediately. Holding the pad repeats only after the normal delay.
+		move_clock = 0.0
 		_try_move(direction)
 	elif pos.y < 70 and pos.x < 100:
 		_pause_game()
@@ -414,8 +370,8 @@ func _draw_title() -> void:
 	_draw_button(Rect2(120, 306, 240, 50), "PLAY", true)
 	_draw_button(Rect2(120, 366, 240, 50), "RESUME" if has_saved_game else "RESUME (NOT STARTED)", has_saved_game)
 	_draw_button(Rect2(120, 426, 240, 50), _sound_label(), false)
-	draw_string(ThemeDB.fallback_font, Vector2(56, 520), "MOVE: D-PAD / WASD / ARROWS", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
-	draw_string(ThemeDB.fallback_font, Vector2(56, 544), "BOMB: BOMB BUTTON / SPACE", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(56, 520), "MOVE: TAP OR HOLD THE D-PAD", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(56, 544), "BOMB: TAP THE BOMB BUTTON", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
 	draw_string(ThemeDB.fallback_font, Vector2(56, 590), "RETRO PIXEL MAZE • MADE FOR ANDROID", HORIZONTAL_ALIGNMENT_LEFT, 390, 11, Color("#66889c"))
 
 func _draw_board() -> void:
@@ -459,7 +415,7 @@ func _draw_controls() -> void:
 	_draw_button(Rect2(102, 586, 64, 42), "v", false)
 	_draw_button(Rect2(330, 510, 110, 100), "BOMB", true)
 	draw_string(ThemeDB.fallback_font, Vector2(34, 496), "MOVE", HORIZONTAL_ALIGNMENT_LEFT, 80, 10, Color("#a9c6d4"))
-	draw_string(ThemeDB.fallback_font, Vector2(350, 626), "SPACE", HORIZONTAL_ALIGNMENT_LEFT, 90, 10, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(350, 626), "TAP TO PLANT", HORIZONTAL_ALIGNMENT_LEFT, 100, 10, Color("#a9c6d4"))
 
 func _draw_overlay(title_text: String, labels: Array, y_positions: Array) -> void:
 	draw_rect(Rect2(34, 200, 412, 360), Color(0.03, 0.06, 0.10, 0.96))
