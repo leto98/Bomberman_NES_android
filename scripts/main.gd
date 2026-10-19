@@ -433,8 +433,8 @@ func _draw() -> void:
 func _draw_header() -> void:
 	draw_rect(Rect2(0, 0, 480, 66), Color("#17283a"))
 	draw_string(ThemeDB.fallback_font, Vector2(20, 30), "BOMBERMAN", HORIZONTAL_ALIGNMENT_LEFT, -1, 23, Color("#ffe66d"))
-	draw_string(ThemeDB.fallback_font, Vector2(20, 52), "8-BIT MAZE ADVENTURE", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#a9c6d4"))
 	if game_state == "playing" or game_state == "paused" or game_state == "won" or game_state == "lost":
+		draw_string(ThemeDB.fallback_font, Vector2(20, 52), "LEVEL %d/10  LIVES %d" % [level, lives], HORIZONTAL_ALIGNMENT_LEFT, 220, 11, Color("#a9c6d4"))
 		draw_string(ThemeDB.fallback_font, Vector2(300, 34), "SCORE %04d" % score, HORIZONTAL_ALIGNMENT_LEFT, 105, 12, Color("#ffffff"))
 		draw_rect(Rect2(414, 8, 52, 48), Color("#254454"))
 		draw_rect(Rect2(418, 12, 44, 40), Color("#347f9c"))
@@ -454,10 +454,9 @@ func _draw_title() -> void:
 	_draw_button(Rect2(120, 486, 240, 50), "EXIT GAME", false)
 	draw_string(ThemeDB.fallback_font, Vector2(56, 556), "MOVE: TAP OR HOLD THE D-PAD", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
 	draw_string(ThemeDB.fallback_font, Vector2(56, 578), "BOMB: TAP THE BOMB BUTTON", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
-	draw_string(ThemeDB.fallback_font, Vector2(56, 612), "RETRO PIXEL MAZE • MADE FOR ANDROID", HORIZONTAL_ALIGNMENT_LEFT, 390, 11, Color("#66889c"))
 
 func _draw_board() -> void:
-	draw_string(ThemeDB.fallback_font, Vector2(32, 70), "LEVEL %d/10  LIVES %d  %s" % [level, lives, message], HORIZONTAL_ALIGNMENT_LEFT, 430, 10, Color("#f4f7fa"))
+	draw_string(ThemeDB.fallback_font, Vector2(32, 70), message, HORIZONTAL_ALIGNMENT_LEFT, 430, 10, Color("#f4f7fa"))
 	for y in range(ROWS):
 		for x in range(COLS):
 			var rect := Rect2(BOARD_X + x * TILE, BOARD_Y + y * TILE, TILE, TILE)
@@ -517,7 +516,6 @@ func _draw_overlay(title_text: String, labels: Array, y_positions: Array) -> voi
 	draw_string(ThemeDB.fallback_font, Vector2(65, 258), title_text, HORIZONTAL_ALIGNMENT_LEFT, 350, 25, Color("#ffe66d"))
 	for i in range(labels.size()):
 		_draw_button(Rect2(120, y_positions[i], 240, 48), str(labels[i]), i == 0)
-	draw_string(ThemeDB.fallback_font, Vector2(105, 535), "ANDROID BACK TO PAUSE", HORIZONTAL_ALIGNMENT_LEFT, 270, 12, Color("#a9c6d4"))
 
 func _draw_button(rect: Rect2, label: String, highlighted: bool) -> void:
 	draw_rect(rect, Color("#b96d42") if highlighted else Color("#254454"))
