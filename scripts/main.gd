@@ -114,7 +114,7 @@ func _direction_at(pos: Vector2) -> Vector2i:
 		return Vector2i.RIGHT
 	if Rect2(102, 478, 64, 52).has_point(pos):
 		return Vector2i.UP
-	if Rect2(102, 586, 64, 42).has_point(pos):
+	if Rect2(102, 586, 64, 52).has_point(pos):
 		return Vector2i.DOWN
 	return Vector2i.ZERO
 
