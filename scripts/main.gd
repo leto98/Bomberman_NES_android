@@ -22,6 +22,8 @@ var exit_cell := Vector2i(11, 9)
 var level := 1
 var lives := 3
 var blast_range := 1
+var level_start_blast_range := 1
+var level_start_score := 0
 var player := PLAYER_START
 var player_facing := Vector2i.RIGHT
 var game_state := "title"
@@ -163,9 +165,16 @@ func _start_game() -> void:
 	level = 1
 	lives = 3
 	blast_range = 1
-	_build_level()
+	score = 0
+	_build_level(true)
 
-func _build_level() -> void:
+func _build_level(new_level: bool = false) -> void:
+	if new_level:
+		level_start_blast_range = blast_range
+		level_start_score = score
+	else:
+		blast_range = level_start_blast_range
+		score = level_start_score
 	walls.clear()
 	blocks.clear()
 	bombs.clear()
@@ -175,8 +184,6 @@ func _build_level() -> void:
 	player_facing = Vector2i.RIGHT
 	move_clock = 0.0
 	enemy_clock = 0.0
-	if level == 1:
-		score = 0
 	held_touch_dir = Vector2i.ZERO
 	powerups.clear()
 	message = "LIVES %d: DEFEAT ENEMIES" % lives
@@ -304,7 +311,7 @@ func _advance_level() -> void:
 		return
 	level += 1
 	lives = 3
-	_build_level()
+	_build_level(true)
 
 func _move_enemies() -> void:
 	for i in range(enemies.size()):
@@ -325,7 +332,7 @@ func _handle_player_death(reason: String) -> void:
 	lives -= 1
 	if lives > 0:
 		message = "LIFE LOST: %d LEFT" % lives
-		_build_level()
+		_build_level(false)
 		return
 	_end_game("lost", "%s - GAME OVER" % reason)
 
