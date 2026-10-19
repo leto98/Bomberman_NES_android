@@ -166,7 +166,7 @@ func _move_enemies() -> void:
 		var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 		choices.shuffle()
 		for d in choices:
-			var p := e + d
+			var p: Vector2i = e + d
 			if p == player:
 				_end_game("CAUGHT! TAP TO RETRY")
 				return
