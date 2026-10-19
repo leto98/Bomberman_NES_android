@@ -21,7 +21,6 @@ var powerups: Array = []
 var exit_cell := Vector2i(11, 9)
 var level := 1
 var blast_range := 1
-var four_way_enabled := false
 var player := PLAYER_START
 var player_facing := Vector2i.RIGHT
 var game_state := "title"
@@ -162,7 +161,6 @@ func _handle_menu_pointer(pos: Vector2) -> void:
 func _start_game() -> void:
 	level = 1
 	blast_range = 1
-	four_way_enabled = false
 	_build_level() 
 
 func _build_level() -> void:
@@ -256,11 +254,8 @@ func _explode(index: int) -> void:
 	bombs.remove_at(index)
 	# Always include the bomb tile so every detonation has a visible centre.
 	var affected: Array[Vector2i] = [cell]
-	var directions: Array[Vector2i] = []
-	if four_way_enabled:
-		directions = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-	else:
-		directions = [player_facing, -player_facing]
+	# Classic Bomberman: every bomb blasts outward in all four directions.
+	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 	for dir in directions:
 		for distance in range(1, blast_range + 1):
 			var p: Vector2i = cell + dir * distance
@@ -288,22 +283,16 @@ func _drop_powerup(cell: Vector2i) -> void:
 	if cell == exit_cell:
 		return
 	if randf() < 0.20:
-		var kind := "four_way" if randf() < 0.5 else "range"
-		powerups.append({"cell": cell, "kind": kind})
+		powerups.append({"cell": cell, "kind": "range"})
 
 func _collect_powerup(cell: Vector2i) -> void:
 	for i in range(powerups.size() - 1, -1, -1):
 		if powerups[i].cell != cell:
 			continue
 		var kind: String = powerups[i].kind
-		if kind == "four_way":
-			four_way_enabled = true
-			message = "FOUR-WAY BOMBS! RANGE %d" % blast_range
-			_play_sound("select")
-		else:
-			blast_range = mini(blast_range + 1, MAX_BLAST_RANGE)
-			message = "BLAST RANGE: %d" % blast_range
-			_play_sound("select")
+		blast_range = mini(blast_range + 1, MAX_BLAST_RANGE)
+		message = "BLAST RANGE: %d" % blast_range
+		_play_sound("select")
 		powerups.remove_at(i)
 		break
 
@@ -468,12 +457,8 @@ func _draw_board() -> void:
 					draw_line(rect.position + Vector2(16, 4), rect.position + Vector2(16, 27), Color("#8b4d39"), 2)
 	for powerup in powerups:
 		var pc := _center(powerup.cell)
-		if powerup.kind == "range":
-			draw_rect(Rect2(pc + Vector2(-9, -9), Vector2(18, 18)), Color("#54d6ff"))
-			draw_string(ThemeDB.fallback_font, pc + Vector2(-5, 5), "R", HORIZONTAL_ALIGNMENT_LEFT, 12, 13, Color("#102030"))
-		else:
-			draw_rect(Rect2(pc + Vector2(-9, -9), Vector2(18, 18)), Color("#d77cff"))
-			draw_string(ThemeDB.fallback_font, pc + Vector2(-5, 5), "4", HORIZONTAL_ALIGNMENT_LEFT, 12, 13, Color("#102030"))
+		draw_rect(Rect2(pc + Vector2(-9, -9), Vector2(18, 18)), Color("#54d6ff"))
+		draw_string(ThemeDB.fallback_font, pc + Vector2(-5, 5), "R", HORIZONTAL_ALIGNMENT_LEFT, 12, 13, Color("#102030"))
 	if blocks[exit_cell.y][exit_cell.x] == false and enemies.is_empty():
 		var door_rect := Rect2(BOARD_X + exit_cell.x * TILE + 5, BOARD_Y + exit_cell.y * TILE + 3, 22, 27)
 		draw_rect(door_rect, Color("#f5d76e"))
