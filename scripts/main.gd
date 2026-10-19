@@ -4,24 +4,182 @@ const TILE := 32
 const COLS := 13
 const ROWS := 11
 const BOARD_X := 32
-const BOARD_Y := 74
+const BOARD_Y := 76
 const MOVE_DELAY := 0.14
 const BOMB_FUSE := 1.35
 const BLAST_TIME := 0.38
+const PLAYER_START := Vector2i(1, 1)
 
 var walls: Array = []
 var blocks: Array = []
 var bombs: Array = []
 var blasts: Array = []
 var enemies: Array[Vector2i] = []
-var player := Vector2i(1, 1)
+var player := PLAYER_START
+var game_state := "title"
+var has_saved_game := false
+var sound_enabled := true
 var move_clock := 0.0
 var enemy_clock := 0.0
-var game_over := false
-var message := "CLEAR THE MAZE!"
+var held_touch_dir := Vector2i.ZERO
+var sound_player: AudioStreamPlayer
+var sound_cache: Dictionary = {}
+var score := 0
+var message := "A CLASSIC MAZE ADVENTURE"
 
 func _ready() -> void:
-	_start_game()
+	randomize()
+	sound_player = AudioStreamPlayer.new()
+	add_child(sound_player)
+	_build_sounds()
+	queue_redraw()
+
+func _process(delta: float) -> void:
+	if game_state != "playing":
+		return
+
+	move_clock += delta
+	enemy_clock += delta
+
+	var direction := _get_held_direction()
+	if direction != Vector2i.ZERO and move_clock >= MOVE_DELAY:
+		move_clock = 0.0
+		_try_move(direction)
+
+	for i in range(bombs.size() - 1, -1, -1):
+		bombs[i].fuse -= delta
+		if bombs[i].fuse <= 0.0:
+			_explode(i)
+
+	for i in range(blasts.size() - 1, -1, -1):
+		blasts[i].time -= delta
+		if blasts[i].time <= 0.0:
+			blasts.remove_at(i)
+
+	if enemy_clock >= 0.82:
+		enemy_clock = 0.0
+		_move_enemies()
+
+	queue_redraw()
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		if event.pressed and not event.echo:
+			if event.keycode == KEY_ESCAPE or event.keycode == KEY_BACK:
+				if game_state == "playing":
+					_pause_game()
+				elif game_state == "paused":
+					game_state = "playing"
+				else:
+					game_state = "title"
+				queue_redraw()
+				return
+			if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER and game_state == "playing":
+				if game_state == "playing":
+					_place_bomb()
+				elif game_state == "title":
+					_start_game()
+				elif game_state == "paused":
+					game_state = "playing"
+				queue_redraw()
+				return
+			if event.keycode == KEY_P:
+				if game_state == "playing":
+					_pause_game()
+				elif game_state == "paused":
+					game_state = "playing"
+				queue_redraw()
+				return
+		return
+
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_handle_pointer(event.position, true)
+		else:
+			held_touch_dir = Vector2i.ZERO
+	elif event is InputEventScreenDrag:
+		if game_state == "playing":
+			held_touch_dir = _direction_at(event.position)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_handle_pointer(event.position, false)
+		else:
+			held_touch_dir = Vector2i.ZERO
+
+func _get_held_direction() -> Vector2i:
+	if held_touch_dir != Vector2i.ZERO:
+		return held_touch_dir
+	if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
+		return Vector2i.LEFT
+	if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
+		return Vector2i.RIGHT
+	if Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W):
+		return Vector2i.UP
+	if Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S):
+		return Vector2i.DOWN
+	return Vector2i.ZERO
+
+func _handle_pointer(pos: Vector2, is_touch: bool) -> void:
+	if game_state != "playing":
+		_handle_menu_pointer(pos)
+		return
+
+	if Rect2(414, 8, 52, 48).has_point(pos):
+		_pause_game()
+		return
+	if Rect2(330, 510, 110, 100).has_point(pos):
+		_place_bomb()
+		return
+
+	var direction := _direction_at(pos)
+	if direction != Vector2i.ZERO:
+		held_touch_dir = direction
+		move_clock = MOVE_DELAY
+		_try_move(direction)
+	elif pos.y < 70 and pos.x < 100:
+		_pause_game()
+
+func _direction_at(pos: Vector2) -> Vector2i:
+	if Rect2(38, 532, 64, 52).has_point(pos):
+		return Vector2i.LEFT
+	if Rect2(166, 532, 64, 52).has_point(pos):
+		return Vector2i.RIGHT
+	if Rect2(102, 478, 64, 52).has_point(pos):
+		return Vector2i.UP
+	if Rect2(102, 586, 64, 42).has_point(pos):
+		return Vector2i.DOWN
+	return Vector2i.ZERO
+
+func _handle_menu_pointer(pos: Vector2) -> void:
+	if game_state == "title":
+		if Rect2(120, 306, 240, 50).has_point(pos):
+			_start_game()
+		elif Rect2(120, 366, 240, 50).has_point(pos):
+			if has_saved_game:
+				game_state = "playing"
+				_play_sound("select")
+		elif Rect2(120, 426, 240, 50).has_point(pos):
+			_toggle_sound()
+	elif game_state == "paused":
+		if Rect2(120, 286, 240, 48).has_point(pos):
+			game_state = "playing"
+			_play_sound("select")
+		elif Rect2(120, 344, 240, 48).has_point(pos):
+			_start_game()
+		elif Rect2(120, 402, 240, 48).has_point(pos):
+			game_state = "title"
+			_play_sound("select")
+		elif Rect2(120, 460, 240, 48).has_point(pos):
+			_toggle_sound()
+	elif game_state == "won" or game_state == "lost":
+		if Rect2(120, 306, 240, 50).has_point(pos):
+			_start_game()
+		elif Rect2(120, 366, 240, 50).has_point(pos):
+			game_state = "title"
+			_play_sound("select")
+		elif Rect2(120, 426, 240, 50).has_point(pos):
+			_toggle_sound()
+	queue_redraw()
 
 func _start_game() -> void:
 	walls.clear()
@@ -29,9 +187,12 @@ func _start_game() -> void:
 	bombs.clear()
 	blasts.clear()
 	enemies.clear()
-	player = Vector2i(1, 1)
-	game_over = false
-	message = "CLEAR THE MAZE!"
+	player = PLAYER_START
+	move_clock = 0.0
+	enemy_clock = 0.0
+	score = 0
+	held_touch_dir = Vector2i.ZERO
+	message = "DEFEAT ALL ENEMIES!"
 	for y in range(ROWS):
 		var wall_row: Array = []
 		var block_row: Array = []
@@ -44,78 +205,29 @@ func _start_game() -> void:
 		walls.append(wall_row)
 		blocks.append(block_row)
 	enemies = [Vector2i(11, 1), Vector2i(11, 9), Vector2i(7, 7)]
-	for e in enemies:
-		blocks[e.y][e.x] = false
+	for enemy in enemies:
+		blocks[enemy.y][enemy.x] = false
+	has_saved_game = true
+	game_state = "playing"
+	_play_sound("select")
 	queue_redraw()
 
-func _process(delta: float) -> void:
-	if game_over:
-		return
-	move_clock += delta
-	enemy_clock += delta
-	for i in range(bombs.size() - 1, -1, -1):
-		bombs[i].fuse -= delta
-		if bombs[i].fuse <= 0.0:
-			_explode(i)
-	for i in range(blasts.size() - 1, -1, -1):
-		blasts[i].time -= delta
-		if blasts[i].time <= 0.0:
-			blasts.remove_at(i)
-	if enemy_clock >= 0.85:
-		enemy_clock = 0.0
-		_move_enemies()
-	queue_redraw()
-
-func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_R and game_over:
-			_start_game()
-			return
-		if event.keycode == KEY_SPACE:
-			_place_bomb()
-		elif event.keycode in [KEY_UP, KEY_W]:
-			_try_move(Vector2i(0, -1))
-		elif event.keycode in [KEY_DOWN, KEY_S]:
-			_try_move(Vector2i(0, 1))
-		elif event.keycode in [KEY_LEFT, KEY_A]:
-			_try_move(Vector2i(-1, 0))
-		elif event.keycode in [KEY_RIGHT, KEY_D]:
-			_try_move(Vector2i(1, 0))
-	elif event is InputEventScreenTouch and event.pressed:
-		_handle_touch(event.position)
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_handle_touch(event.position)
-
-func _handle_touch(pos: Vector2) -> void:
-	if game_over:
-		_start_game()
-		return
-	if pos.y < 480:
-		return
-	if pos.x < 112:
-		_try_move(Vector2i(-1, 0))
-	elif pos.x < 224:
-		_try_move(Vector2i(0, 1))
-	elif pos.x < 336:
-		_try_move(Vector2i(0, -1))
-	elif pos.x < 390:
-		_try_move(Vector2i(1, 0))
-	else:
-		_place_bomb()
+func _pause_game() -> void:
+	if game_state == "playing":
+		game_state = "paused"
+		held_touch_dir = Vector2i.ZERO
+		_play_sound("select")
+		queue_redraw()
 
 func _try_move(dir: Vector2i) -> void:
-	if game_over:
+	if game_state != "playing":
 		return
-	if move_clock < MOVE_DELAY:
-		return
-	move_clock = 0.0
 	var target := player + dir
 	if _is_open(target):
 		player = target
+		_play_sound("move")
 		if enemies.has(player):
-			_end_game("CAUGHT! TAP TO RETRY")
-		if enemies.is_empty():
-			_end_game("MAZE CLEARED! TAP TO PLAY")
+			_end_game("lost", "CAUGHT!")
 	queue_redraw()
 
 func _is_open(p: Vector2i) -> bool:
@@ -123,18 +235,19 @@ func _is_open(p: Vector2i) -> bool:
 		return false
 	if walls[p.y][p.x] or blocks[p.y][p.x]:
 		return false
-	for b in bombs:
-		if b.cell == p:
+	for bomb in bombs:
+		if bomb.cell == p:
 			return false
 	return true
 
 func _place_bomb() -> void:
-	if game_over or bombs.size() >= 2:
+	if game_state != "playing" or bombs.size() >= 2:
 		return
-	for b in bombs:
-		if b.cell == player:
+	for bomb in bombs:
+		if bomb.cell == player:
 			return
 	bombs.append({"cell": player, "fuse": BOMB_FUSE})
+	_play_sound("plant")
 	queue_redraw()
 
 func _explode(index: int) -> void:
@@ -149,40 +262,155 @@ func _explode(index: int) -> void:
 			affected.append(p)
 			if blocks[p.y][p.x]:
 				blocks[p.y][p.x] = false
+				score += 10
 				break
-	for p in affected:
-		if p == player:
-			_end_game("BOOM! TAP TO RETRY")
-		if enemies.has(p):
-			enemies.erase(p)
+	_play_sound("explosion")
+	for cell_pos in affected:
+		if cell_pos == player:
+			_end_game("lost", "BOOM!")
+		if enemies.has(cell_pos):
+			enemies.erase(cell_pos)
+			score += 100
 	blasts.append({"cells": affected, "time": BLAST_TIME})
-	if enemies.is_empty() and not game_over:
-		_end_game("MAZE CLEARED! TAP TO PLAY")
+	if enemies.is_empty() and game_state == "playing":
+		_end_game("won", "MAZE CLEARED!")
 	queue_redraw()
 
 func _move_enemies() -> void:
 	for i in range(enemies.size()):
-		var e: Vector2i = enemies[i]
+		var enemy: Vector2i = enemies[i]
 		var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 		choices.shuffle()
-		for d in choices:
-			var p: Vector2i = e + d
-			if p == player:
-				_end_game("CAUGHT! TAP TO RETRY")
+		for direction in choices:
+			var target: Vector2i = enemy + direction
+			if target == player:
+				_end_game("lost", "CAUGHT!")
 				return
-			if _is_open(p) and not enemies.has(p):
-				enemies[i] = p
+			if _is_open(target) and not enemies.has(target):
+				enemies[i] = target
 				break
 
-func _end_game(text_value: String) -> void:
-	game_over = true
+func _end_game(result: String, text_value: String) -> void:
+	game_state = result
 	message = text_value
+	held_touch_dir = Vector2i.ZERO
+	_play_sound("win" if result == "won" else "lose")
+	queue_redraw()
+
+func _build_sounds() -> void:
+	sound_cache["move"] = _make_sound("move")
+	sound_cache["plant"] = _make_sound("plant")
+	sound_cache["explosion"] = _make_sound("explosion")
+	sound_cache["select"] = _make_sound("select")
+	sound_cache["win"] = _make_sound("win")
+	sound_cache["lose"] = _make_sound("lose")
+
+func _make_sound(kind: String) -> AudioStreamWAV:
+	var rate := 22050
+	var duration := 0.12
+	if kind == "plant":
+		duration = 0.24
+	elif kind == "explosion":
+		duration = 0.52
+	elif kind == "win":
+		duration = 0.55
+	elif kind == "lose":
+		duration = 0.42
+	elif kind == "select":
+		duration = 0.09
+	var count := int(rate * duration)
+	var data := PackedByteArray()
+	data.resize(count * 2)
+	for i in range(count):
+		var t := float(i) / float(rate)
+		var envelope := pow(maxf(0.0, 1.0 - t / duration), 2.0)
+		var sample := 0.0
+		if kind == "explosion":
+			var low_boom := sin(TAU * (68.0 - 28.0 * t / duration) * t)
+			sample = (randf_range(-0.8, 0.8) * 0.72 + low_boom * 0.28) * envelope
+		elif kind == "plant":
+			sample = sin(TAU * (240.0 + 520.0 * t / duration) * t) * envelope * 0.55
+		elif kind == "move":
+			sample = sin(TAU * 620.0 * t) * envelope * 0.20
+		elif kind == "select":
+			sample = sin(TAU * 880.0 * t) * envelope * 0.22
+		elif kind == "win":
+			var frequency := 440.0 if t < duration * 0.33 else (554.0 if t < duration * 0.66 else 659.0)
+			sample = sin(TAU * frequency * t) * envelope * 0.35
+		else:
+			sample = sin(TAU * (300.0 - 210.0 * t / duration) * t) * envelope * 0.35
+		data.encode_s16(i * 2, int(clampf(sample, -1.0, 1.0) * 32767.0))
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = rate
+	stream.stereo = false
+	stream.data = data
+	return stream
+
+func _play_sound(kind: String) -> void:
+	if not sound_enabled or not is_instance_valid(sound_player):
+		return
+	var stream: AudioStreamWAV = sound_cache.get(kind)
+	if stream == null:
+		return
+	sound_player.stop()
+	sound_player.stream = stream
+	sound_player.play()
+
+func _toggle_sound() -> void:
+	sound_enabled = not sound_enabled
+	if not sound_enabled:
+		sound_player.stop()
+	else:
+		_play_sound("select")
 	queue_redraw()
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, Vector2(480, 640)), Color("#101c2b"))
-	draw_string(ThemeDB.fallback_font, Vector2(24, 30), "BOMBERMAN 8-BIT", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("#ffe66d"))
-	draw_string(ThemeDB.fallback_font, Vector2(24, 54), message, HORIZONTAL_ALIGNMENT_LEFT, 430, 13, Color("#f4f7fa"))
+	draw_rect(Rect2(0, 0, 480, 640), Color("#101827"))
+	_draw_header()
+	if game_state == "title":
+		_draw_title()
+	elif game_state == "playing":
+		_draw_board()
+		_draw_controls()
+	elif game_state == "paused":
+		_draw_board()
+		_draw_controls()
+		_draw_overlay("PAUSED", ["RESUME", "RESTART", "MAIN MENU", _sound_label()], [286, 344, 402, 460])
+	elif game_state == "won":
+		_draw_board()
+		_draw_overlay("YOU WIN!", ["PLAY AGAIN", "MAIN MENU", _sound_label()], [306, 366, 426])
+	elif game_state == "lost":
+		_draw_board()
+		_draw_overlay(message, ["TRY AGAIN", "MAIN MENU", _sound_label()], [306, 366, 426])
+
+func _draw_header() -> void:
+	draw_rect(Rect2(0, 0, 480, 66), Color("#17283a"))
+	draw_string(ThemeDB.fallback_font, Vector2(20, 30), "BOMBERMAN", HORIZONTAL_ALIGNMENT_LEFT, -1, 23, Color("#ffe66d"))
+	draw_string(ThemeDB.fallback_font, Vector2(20, 52), "8-BIT MAZE ADVENTURE", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#a9c6d4"))
+	if game_state == "playing" or game_state == "paused" or game_state == "won" or game_state == "lost":
+		draw_string(ThemeDB.fallback_font, Vector2(300, 34), "SCORE %04d" % score, HORIZONTAL_ALIGNMENT_LEFT, 105, 12, Color("#ffffff"))
+		draw_rect(Rect2(414, 8, 52, 48), Color("#254454"))
+		draw_rect(Rect2(418, 12, 44, 40), Color("#347f9c"))
+		draw_string(ThemeDB.fallback_font, Vector2(429, 38), "II", HORIZONTAL_ALIGNMENT_LEFT, 30, 19, Color.WHITE)
+
+func _draw_title() -> void:
+	draw_rect(Rect2(24, 94, 432, 176), Color("#17283a"))
+	draw_rect(Rect2(30, 100, 420, 164), Color("#20394a"))
+	_draw_mini_character(Vector2(115, 155), Color("#ffd34e"))
+	_draw_mini_bomb(Vector2(240, 158))
+	_draw_mini_character(Vector2(365, 155), Color("#d94b55"))
+	draw_string(ThemeDB.fallback_font, Vector2(60, 215), "BOMBS. BLOCKS. SURVIVE.", HORIZONTAL_ALIGNMENT_LEFT, 360, 16, Color("#f4f7fa"))
+	draw_string(ThemeDB.fallback_font, Vector2(76, 246), "DEFEAT THE ENEMIES TO WIN", HORIZONTAL_ALIGNMENT_LEFT, 330, 12, Color("#a9c6d4"))
+	_draw_button(Rect2(120, 306, 240, 50), "PLAY", true)
+	_draw_button(Rect2(120, 366, 240, 50), "RESUME" if has_saved_game else "RESUME (NOT STARTED)", has_saved_game)
+	_draw_button(Rect2(120, 426, 240, 50), _sound_label(), false)
+	draw_string(ThemeDB.fallback_font, Vector2(56, 520), "MOVE: D-PAD / WASD / ARROWS", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(56, 544), "BOMB: BOMB BUTTON / SPACE", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(56, 590), "RETRO PIXEL MAZE • MADE FOR ANDROID", HORIZONTAL_ALIGNMENT_LEFT, 390, 11, Color("#66889c"))
+
+func _draw_board() -> void:
+	draw_string(ThemeDB.fallback_font, Vector2(32, 70), message, HORIZONTAL_ALIGNMENT_LEFT, 300, 10, Color("#f4f7fa"))
 	for y in range(ROWS):
 		for x in range(COLS):
 			var rect := Rect2(BOARD_X + x * TILE, BOARD_Y + y * TILE, TILE, TILE)
@@ -190,6 +418,7 @@ func _draw() -> void:
 				draw_rect(rect, Color("#245b77"))
 				draw_rect(rect.grow(-4), Color("#347f9c"))
 				draw_rect(Rect2(rect.position + Vector2(5, 5), Vector2(7, 4)), Color("#69b7c9"))
+				draw_rect(Rect2(rect.position + Vector2(19, 19), Vector2(7, 4)), Color("#245b77"))
 			else:
 				draw_rect(rect, Color("#20394a"))
 				draw_rect(Rect2(rect.position + Vector2(1, 1), Vector2(30, 30)), Color("#254454"))
@@ -197,32 +426,45 @@ func _draw() -> void:
 					draw_rect(rect.grow(-3), Color("#b96d42"))
 					draw_rect(Rect2(rect.position + Vector2(4, 5), Vector2(10, 5)), Color("#e6a05d"))
 					draw_rect(Rect2(rect.position + Vector2(17, 19), Vector2(10, 5)), Color("#8b4d39"))
-	for b in bombs:
-		var c: Vector2i = b.cell
-		var center := _center(c)
+					draw_line(rect.position + Vector2(16, 4), rect.position + Vector2(16, 27), Color("#8b4d39"), 2)
+	for bomb in bombs:
+		var center := _center(bomb.cell)
 		draw_circle(center, 11, Color("#15171d"))
 		draw_circle(center + Vector2(-3, -4), 3, Color("#c6c9cf"))
 		draw_line(center + Vector2(5, -8), center + Vector2(10, -14), Color("#ffcb5c"), 3)
+		draw_circle(center + Vector2(11, -14), 2, Color("#ff6b35"))
 	for blast in blasts:
-		for c in blast.cells:
-			draw_rect(Rect2(BOARD_X + c.x * TILE + 3, BOARD_Y + c.y * TILE + 3, TILE - 6, TILE - 6), Color("#ffb52e"))
-			draw_rect(Rect2(BOARD_X + c.x * TILE + 10, BOARD_Y + c.y * TILE + 10, TILE - 20, TILE - 20), Color("#fff2a6"))
-	for e in enemies:
-		var c := _center(e)
-		draw_circle(c, 12, Color("#d94b55"))
-		draw_circle(c + Vector2(-4, -3), 3, Color.WHITE)
-		draw_circle(c + Vector2(4, -3), 3, Color.WHITE)
-		draw_circle(c + Vector2(-4, -3), 1.5, Color("#18212d"))
-		draw_circle(c + Vector2(4, -3), 1.5, Color("#18212d"))
+		for cell in blast.cells:
+			var rect := Rect2(BOARD_X + cell.x * TILE + 2, BOARD_Y + cell.y * TILE + 2, TILE - 4, TILE - 4)
+			draw_rect(rect, Color("#ff8c26"))
+			draw_rect(rect.grow(-7), Color("#ffd34e"))
+			draw_rect(rect.grow(-13), Color("#fff2a6"))
+	for enemy in enemies:
+		_draw_enemy(_center(enemy))
 	_draw_player()
-	_draw_controls()
-	if game_over:
-		draw_rect(Rect2(24, 250, 432, 84), Color(0.02, 0.05, 0.09, 0.92))
-		draw_string(ThemeDB.fallback_font, Vector2(44, 286), message, HORIZONTAL_ALIGNMENT_LEFT, 390, 17, Color("#ffe66d"))
-		draw_string(ThemeDB.fallback_font, Vector2(44, 312), "TAP SCREEN OR PRESS R", HORIZONTAL_ALIGNMENT_LEFT, 390, 12, Color.WHITE)
 
-func _center(p: Vector2i) -> Vector2:
-	return Vector2(BOARD_X + p.x * TILE + TILE / 2, BOARD_Y + p.y * TILE + TILE / 2)
+func _draw_controls() -> void:
+	_draw_button(Rect2(38, 532, 64, 52), "<", false)
+	_draw_button(Rect2(166, 532, 64, 52), ">", false)
+	_draw_button(Rect2(102, 478, 64, 52), "^", false)
+	_draw_button(Rect2(102, 586, 64, 42), "v", false)
+	_draw_button(Rect2(330, 510, 110, 100), "BOMB", true)
+	draw_string(ThemeDB.fallback_font, Vector2(34, 496), "MOVE", HORIZONTAL_ALIGNMENT_LEFT, 80, 10, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(350, 626), "SPACE", HORIZONTAL_ALIGNMENT_LEFT, 90, 10, Color("#a9c6d4"))
+
+func _draw_overlay(title_text: String, labels: Array, y_positions: Array) -> void:
+	draw_rect(Rect2(34, 200, 412, 360), Color(0.03, 0.06, 0.10, 0.96))
+	draw_rect(Rect2(40, 206, 400, 348), Color("#17283a"))
+	draw_string(ThemeDB.fallback_font, Vector2(65, 258), title_text, HORIZONTAL_ALIGNMENT_LEFT, 350, 25, Color("#ffe66d"))
+	for i in range(labels.size()):
+		_draw_button(Rect2(120, y_positions[i], 240, 48), str(labels[i]), i == 0)
+	draw_string(ThemeDB.fallback_font, Vector2(105, 535), "ESC / P TO PAUSE", HORIZONTAL_ALIGNMENT_LEFT, 270, 12, Color("#a9c6d4"))
+
+func _draw_button(rect: Rect2, label: String, highlighted: bool) -> void:
+	draw_rect(rect, Color("#b96d42") if highlighted else Color("#254454"))
+	draw_rect(rect.grow(-3), Color("#e6a05d") if highlighted else Color("#347f9c"))
+	var font_size := 14 if label.length() < 16 else 10
+	draw_string(ThemeDB.fallback_font, Vector2(rect.position.x + 12, rect.position.y + rect.size.y * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 24, font_size, Color("#ffffff"))
 
 func _draw_player() -> void:
 	var r := Rect2(BOARD_X + player.x * TILE + 5, BOARD_Y + player.y * TILE + 4, 22, 24)
@@ -233,17 +475,30 @@ func _draw_player() -> void:
 	draw_rect(Rect2(r.position + Vector2(4, 17), Vector2(5, 5)), Color("#e78c36"))
 	draw_rect(Rect2(r.position + Vector2(13, 17), Vector2(5, 5)), Color("#e78c36"))
 
-func _draw_controls() -> void:
-	var buttons := [
-		[Rect2(28, 505, 82, 54), "LEFT"],
-		[Rect2(116, 505, 82, 54), "DOWN"],
-		[Rect2(204, 505, 82, 54), "UP"],
-		[Rect2(292, 505, 70, 54), "RIGHT"],
-		[Rect2(370, 505, 82, 54), "BOMB"]
-	]
-	for item in buttons:
-		var rect: Rect2 = item[0]
-		draw_rect(rect, Color("#254454"))
-		draw_rect(rect.grow(-3), Color("#347f9c"))
-		draw_string(ThemeDB.fallback_font, Vector2(rect.position.x + 8, rect.position.y + 32), item[1], HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 12, 12, Color.WHITE)
-	draw_string(ThemeDB.fallback_font, Vector2(32, 590), "KEYBOARD: WASD / ARROWS + SPACE", HORIZONTAL_ALIGNMENT_LEFT, 420, 12, Color("#a9c6d4"))
+func _draw_enemy(center: Vector2) -> void:
+	draw_circle(center, 12, Color("#d94b55"))
+	draw_rect(Rect2(center + Vector2(-9, -7), Vector2(18, 5)), Color("#ff8b91"))
+	draw_circle(center + Vector2(-4, -3), 3, Color.WHITE)
+	draw_circle(center + Vector2(4, -3), 3, Color.WHITE)
+	draw_circle(center + Vector2(-4, -3), 1.5, Color("#18212d"))
+	draw_circle(center + Vector2(4, -3), 1.5, Color("#18212d"))
+
+func _draw_mini_character(center: Vector2, tint: Color) -> void:
+	draw_rect(Rect2(center + Vector2(-17, -18), Vector2(34, 36)), tint)
+	draw_rect(Rect2(center + Vector2(-12, -12), Vector2(24, 13)), Color("#f8f1d0"))
+	draw_rect(Rect2(center + Vector2(-8, -8), Vector2(4, 6)), Color("#18212d"))
+	draw_rect(Rect2(center + Vector2(4, -8), Vector2(4, 6)), Color("#18212d"))
+	draw_rect(Rect2(center + Vector2(-12, 9), Vector2(8, 7)), Color("#e78c36"))
+	draw_rect(Rect2(center + Vector2(4, 9), Vector2(8, 7)), Color("#e78c36"))
+
+func _draw_mini_bomb(center: Vector2) -> void:
+	draw_circle(center, 25, Color("#090d14"))
+	draw_circle(center + Vector2(-7, -8), 7, Color("#c6c9cf"))
+	draw_line(center + Vector2(9, -19), center + Vector2(18, -29), Color("#ffcb5c"), 4)
+	draw_circle(center + Vector2(19, -30), 4, Color("#ff6b35"))
+
+func _center(cell: Vector2i) -> Vector2:
+	return Vector2(BOARD_X + cell.x * TILE + TILE / 2, BOARD_Y + cell.y * TILE + TILE / 2)
+
+func _sound_label() -> String:
+	return "SOUND: ON" if sound_enabled else "SOUND: OFF"
