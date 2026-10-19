@@ -23,6 +23,7 @@ var level := 1
 var blast_range := 1
 var four_way_enabled := false
 var player := PLAYER_START
+var player_facing := Vector2i.RIGHT
 var game_state := "title"
 var has_saved_game := false
 var sound_enabled := true
@@ -169,9 +170,11 @@ func _build_level() -> void:
 	blasts.clear()
 	enemies.clear()
 	player = PLAYER_START
+	player_facing = Vector2i.RIGHT
 	move_clock = 0.0
 	enemy_clock = 0.0
-	score = 0
+	if level == 1:
+		score = 0
 	held_touch_dir = Vector2i.ZERO
 	powerups.clear()
 	message = "LEVEL %d: DEFEAT ENEMIES" % level
@@ -214,6 +217,7 @@ func _pause_game() -> void:
 func _try_move(dir: Vector2i) -> void:
 	if game_state != "playing":
 		return
+	player_facing = dir
 	var target := player + dir
 	if _is_open(target):
 		player = target
@@ -249,22 +253,18 @@ func _explode(index: int) -> void:
 	var cell: Vector2i = bombs[index].cell
 	bombs.remove_at(index)
 	var affected: Array[Vector2i] = [cell]
-	if four_way_enabled:
-		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-			for distance in range(1, blast_range + 1):
-				var p: Vector2i = cell + dir * distance
-				if p.x < 0 or p.y < 0 or p.x >= COLS or p.y >= ROWS or walls[p.y][p.x]:
-					break
-				affected.append(p)
-				if blocks[p.y][p.x]:
-					blocks[p.y][p.x] = false
-					_drop_powerup(p)
-					score += 10
-					break
-	else:
-		if blocks[cell.y][cell.x]:
-			blocks[cell.y][cell.x] = false
-			_drop_powerup(cell)
+	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT] if four_way_enabled else [player_facing]
+	for dir in directions:
+		for distance in range(1, blast_range + 1):
+			var p: Vector2i = cell + dir * distance
+			if p.x < 0 or p.y < 0 or p.x >= COLS or p.y >= ROWS or walls[p.y][p.x]:
+				break
+			affected.append(p)
+			if blocks[p.y][p.x]:
+				blocks[p.y][p.x] = false
+				_drop_powerup(p)
+				score += 10
+				break
 	_play_sound("explosion")
 	for cell_pos in affected:
 		if cell_pos == player:
