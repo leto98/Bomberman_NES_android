@@ -35,6 +35,8 @@ var held_touch_dir := Vector2i.ZERO
 var sound_player: AudioStreamPlayer
 var sound_cache: Dictionary = {}
 var score := 0
+var death_timer := 0.0
+var death_reason := "CAUGHT!"
 var message := "A CLASSIC MAZE ADVENTURE"
 
 func _ready() -> void:
@@ -45,6 +47,12 @@ func _ready() -> void:
 	queue_redraw()
 
 func _process(delta: float) -> void:
+	if game_state == "dying":
+		death_timer -= delta
+		queue_redraw()
+		if death_timer <= 0.0:
+			_handle_player_death(death_reason)
+		return
 	if game_state != "playing":
 		return
 
@@ -233,7 +241,7 @@ func _try_move(dir: Vector2i) -> void:
 		_play_sound("move")
 		_collect_powerup(player)
 		if enemies.has(player):
-			_handle_player_death("CAUGHT!")
+			_begin_player_death("CAUGHT!")
 		elif player == exit_cell and enemies.is_empty():
 			_advance_level()
 	queue_redraw()
@@ -325,14 +333,16 @@ func _move_enemies() -> void:
 			for direction in choices:
 				var target: Vector2i = enemy + direction
 				if target == player:
-					_end_game("lost", "CAUGHT!")
+					enemies[i] = player
+					_begin_player_death("CAUGHT!")
 					return
 				if _is_open(target) and not enemies.has(target):
 					next_step = target
 					break
 		if next_step != Vector2i.ZERO:
 			if next_step == player:
-				_end_game("lost", "CAUGHT!")
+				enemies[i] = player
+				_begin_player_death("CAUGHT!")
 				return
 			enemies[i] = next_step
 
@@ -382,6 +392,16 @@ func _get_chase_step(start: Vector2i) -> Vector2i:
 		step = came_from[step]
 	return step
 
+
+func _begin_player_death(reason: String) -> void:
+	if game_state != "playing":
+		return
+	death_reason = reason
+	death_timer = 0.72
+	game_state = "dying"
+	held_touch_dir = Vector2i.ZERO
+	_play_sound("lose")
+	queue_redraw()
 
 func _handle_player_death(reason: String) -> void:
 	lives -= 1
@@ -471,9 +491,12 @@ func _draw() -> void:
 	_draw_header()
 	if game_state == "title":
 		_draw_title()
-	elif game_state == "playing":
+	elif game_state == "playing" or game_state == "dying":
 		_draw_board()
-		_draw_controls()
+		if game_state == "playing":
+			_draw_controls()
+		else:
+			_draw_caught_effect()
 	elif game_state == "paused":
 		_draw_board()
 		_draw_controls()
@@ -609,6 +632,15 @@ func _draw_player() -> void:
 	draw_rect(Rect2(r.position + Vector2(14, 6), Vector2(3, 4)), Color("#18212d"))
 	draw_rect(Rect2(r.position + Vector2(4, 17), Vector2(5, 5)), Color("#e78c36"))
 	draw_rect(Rect2(r.position + Vector2(13, 17), Vector2(5, 5)), Color("#e78c36"))
+
+func _draw_caught_effect() -> void:
+	var center := _center(player)
+	var progress := 1.0 - clampf(death_timer / 0.72, 0.0, 1.0)
+	var radius := 10.0 + progress * 18.0
+	var impact_color := Color("#ffe66d") if int(progress * 10.0) % 2 == 0 else Color("#ff6b35")
+	for direction in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT, Vector2(-0.7, -0.7), Vector2(0.7, -0.7), Vector2(-0.7, 0.7), Vector2(0.7, 0.7)]:
+		draw_line(center + direction * 8.0, center + direction * radius, impact_color, 3.0)
+	draw_string(ThemeDB.fallback_font, center + Vector2(-37, -22), "CAUGHT!", HORIZONTAL_ALIGNMENT_CENTER, 74, 12, Color("#fff2a6"))
 
 func _draw_enemy(center: Vector2) -> void:
 	# Give the enemy a small demon-like silhouette instead of a cute round face.
