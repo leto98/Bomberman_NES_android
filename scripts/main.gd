@@ -588,12 +588,51 @@ func _draw_player() -> void:
 	draw_rect(Rect2(r.position + Vector2(13, 17), Vector2(5, 5)), Color("#e78c36"))
 
 func _draw_enemy(center: Vector2) -> void:
-	draw_circle(center, 12, Color("#d94b55"))
-	draw_rect(Rect2(center + Vector2(-9, -7), Vector2(18, 5)), Color("#ff8b91"))
-	draw_circle(center + Vector2(-4, -3), 3, Color.WHITE)
-	draw_circle(center + Vector2(4, -3), 3, Color.WHITE)
-	draw_circle(center + Vector2(-4, -3), 1.5, Color("#18212d"))
-	draw_circle(center + Vector2(4, -3), 1.5, Color("#18212d"))
+	# Give the enemy a small demon-like silhouette instead of a cute round face.
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-8, -7), center + Vector2(-12, -17),
+		center + Vector2(-2, -12), center + Vector2(2, -12),
+		center + Vector2(12, -17), center + Vector2(8, -6)
+	]), Color("#641d2b"))
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-11, 1), center + Vector2(-16, -2),
+		center + Vector2(-11, -6), center + Vector2(-9, 5)
+	]), Color("#8f2637"))
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(11, 1), center + Vector2(16, -2),
+		center + Vector2(11, -6), center + Vector2(9, 5)
+	]), Color("#8f2637"))
+	draw_circle(center, 12, Color("#a52d40"))
+	draw_circle(center + Vector2(0, 3), 9, Color("#7c1e30"))
+	# Narrow, slanted eyes and heavy brows make the expression look hostile.
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-9, -5), center + Vector2(-2, -3),
+		center + Vector2(-3, 0), center + Vector2(-9, -1)
+	]), Color("#ffd34e"))
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(9, -5), center + Vector2(2, -3),
+		center + Vector2(3, 0), center + Vector2(9, -1)
+	]), Color("#ffd34e"))
+	draw_line(center + Vector2(-10, -8), center + Vector2(-2, -4), Color("#32101b"), 3)
+	draw_line(center + Vector2(10, -8), center + Vector2(2, -4), Color("#32101b"), 3)
+	draw_line(center + Vector2(-5, -3), center + Vector2(-5, -1), Color("#32101b"), 2)
+	draw_line(center + Vector2(5, -3), center + Vector2(5, -1), Color("#32101b"), 2)
+	# Jagged dark mouth with two sharp fangs.
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-7, 4), center + Vector2(-3, 5),
+		center + Vector2(0, 4), center + Vector2(3, 5),
+		center + Vector2(7, 4), center + Vector2(5, 9),
+		center + Vector2(-5, 9)
+	]), Color("#210b13"))
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-4, 5), center + Vector2(-1, 5),
+		center + Vector2(-3, 8)
+	]), Color("#f3e8d7"))
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(2, 5), center + Vector2(5, 5),
+		center + Vector2(4, 8)
+	]), Color("#f3e8d7"))
+	draw_line(center + Vector2(-7, 11), center + Vector2(7, 11), Color("#4a1424"), 2)
 
 func _draw_mini_character(center: Vector2, tint: Color) -> void:
 	draw_rect(Rect2(center + Vector2(-17, -18), Vector2(34, 36)), tint)
