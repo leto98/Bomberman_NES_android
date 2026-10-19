@@ -73,7 +73,6 @@ jobs:
         run: |
           test -s build/Bomberman8Bit.apk
           ls -lh build/Bomberman8Bit.apk
-          file build/Bomberman8Bit.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
