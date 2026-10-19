@@ -249,7 +249,7 @@ func _is_open(p: Vector2i) -> bool:
 	return true
 
 func _place_bomb() -> void:
-	if game_state != "playing" or bombs.size() >= 2:
+	if game_state != "playing" or bombs.size() >= 1:
 		return
 	for bomb in bombs:
 		if bomb.cell == player:
@@ -505,7 +505,7 @@ func _draw_controls() -> void:
 	_draw_button(Rect2(38, 532, 82, 56), "<", false)
 	_draw_button(Rect2(148, 532, 82, 56), ">", false)
 	_draw_button(Rect2(92, 474, 82, 56), "^", false)
-	_draw_button(Rect2(92, 590, 82, 42), "v", false)
+	_draw_button(Rect2(92, 584, 82, 56), "v", false)
 	_draw_button(Rect2(330, 510, 110, 100), "BOMB", true)
 	draw_string(ThemeDB.fallback_font, Vector2(34, 496), "MOVE", HORIZONTAL_ALIGNMENT_LEFT, 80, 10, Color("#a9c6d4"))
 	draw_string(ThemeDB.fallback_font, Vector2(350, 626), "TAP TO PLANT", HORIZONTAL_ALIGNMENT_LEFT, 100, 10, Color("#a9c6d4"))
