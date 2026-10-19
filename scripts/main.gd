@@ -55,8 +55,9 @@ func _process(delta: float) -> void:
 		_try_move(direction)
 
 	for i in range(bombs.size() - 1, -1, -1):
-		bombs[i].fuse -= delta
-		if bombs[i].fuse <= 0.0:
+		var remaining_fuse: float = float(bombs[i].get("fuse", 0.0)) - delta
+		bombs[i]["fuse"] = remaining_fuse
+		if remaining_fuse <= 0.0:
 			_explode(i)
 
 	for i in range(blasts.size() - 1, -1, -1):
