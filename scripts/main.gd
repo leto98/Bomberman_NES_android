@@ -9,12 +9,19 @@ const MOVE_DELAY := 0.14
 const BOMB_FUSE := 2.5
 const BLAST_TIME := 0.38
 const PLAYER_START := Vector2i(1, 1)
+const TOTAL_LEVELS := 10
+const MAX_BLAST_RANGE := 2
 
 var walls: Array = []
 var blocks: Array = []
 var bombs: Array = []
 var blasts: Array = []
 var enemies: Array[Vector2i] = []
+var powerups: Array = []
+var exit_cell := Vector2i(11, 9)
+var level := 1
+var blast_range := 1
+var four_way_enabled := false
 var player := PLAYER_START
 var game_state := "title"
 var has_saved_game := false
@@ -56,7 +63,7 @@ func _process(delta: float) -> void:
 		if blasts[i].time <= 0.0:
 			blasts.remove_at(i)
 
-	if enemy_clock >= 0.82:
+	if enemy_clock >= maxf(0.58, 0.88 - float(level - 1) * 0.025):
 		enemy_clock = 0.0
 		_move_enemies()
 
@@ -150,6 +157,12 @@ func _handle_menu_pointer(pos: Vector2) -> void:
 	queue_redraw()
 
 func _start_game() -> void:
+	level = 1
+	blast_range = 1
+	four_way_enabled = false
+	_build_level() 
+
+func _build_level() -> void:
 	walls.clear()
 	blocks.clear()
 	bombs.clear()
@@ -160,7 +173,8 @@ func _start_game() -> void:
 	enemy_clock = 0.0
 	score = 0
 	held_touch_dir = Vector2i.ZERO
-	message = "DEFEAT ALL ENEMIES!"
+	powerups.clear()
+	message = "LEVEL %d: DEFEAT ENEMIES" % level
 	for y in range(ROWS):
 		var wall_row: Array = []
 		var block_row: Array = []
@@ -168,13 +182,23 @@ func _start_game() -> void:
 			var solid := x == 0 or y == 0 or x == COLS - 1 or y == ROWS - 1 or (x % 2 == 0 and y % 2 == 0)
 			wall_row.append(solid)
 			var near_start := x <= 2 and y <= 2
-			var block := not solid and not near_start and randf() < 0.34
+			var near_exit := x >= COLS - 3 and y >= ROWS - 3
+			var block := not solid and not near_start and not near_exit and randf() < 0.30
 			block_row.append(block)
 		walls.append(wall_row)
 		blocks.append(block_row)
-	enemies = [Vector2i(11, 1), Vector2i(11, 9), Vector2i(7, 7)]
-	for enemy in enemies:
-		blocks[enemy.y][enemy.x] = false
+	# The exit is hidden under a destructible block until revealed.
+	exit_cell = Vector2i(COLS - 2, ROWS - 2)
+	blocks[exit_cell.y][exit_cell.x] = true
+	var spawn_candidates: Array[Vector2i] = [Vector2i(11, 1), Vector2i(9, 1), Vector2i(11, 5), Vector2i(7, 7), Vector2i(9, 9), Vector2i(5, 9), Vector2i(11, 7)]
+	var enemy_count := mini(2 + int((level - 1) / 2), 6)
+	for spawn in spawn_candidates:
+		if enemies.size() >= enemy_count:
+			break
+		if not walls[spawn.y][spawn.x]:
+			blocks[spawn.y][spawn.x] = false
+			if not enemies.has(spawn) and spawn != exit_cell:
+				enemies.append(spawn)
 	has_saved_game = true
 	game_state = "playing"
 	_play_sound("select")
@@ -194,8 +218,11 @@ func _try_move(dir: Vector2i) -> void:
 	if _is_open(target):
 		player = target
 		_play_sound("move")
+		_collect_powerup(player)
 		if enemies.has(player):
 			_end_game("lost", "CAUGHT!")
+		elif player == exit_cell and enemies.is_empty():
+			_advance_level()
 	queue_redraw()
 
 func _is_open(p: Vector2i) -> bool:
@@ -222,16 +249,22 @@ func _explode(index: int) -> void:
 	var cell: Vector2i = bombs[index].cell
 	bombs.remove_at(index)
 	var affected: Array[Vector2i] = [cell]
-	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-		for distance in range(1, 3):
-			var p: Vector2i = cell + dir * distance
-			if p.x < 0 or p.y < 0 or p.x >= COLS or p.y >= ROWS or walls[p.y][p.x]:
-				break
-			affected.append(p)
-			if blocks[p.y][p.x]:
-				blocks[p.y][p.x] = false
-				score += 10
-				break
+	if four_way_enabled:
+		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			for distance in range(1, blast_range + 1):
+				var p: Vector2i = cell + dir * distance
+				if p.x < 0 or p.y < 0 or p.x >= COLS or p.y >= ROWS or walls[p.y][p.x]:
+					break
+				affected.append(p)
+				if blocks[p.y][p.x]:
+					blocks[p.y][p.x] = false
+					_drop_powerup(p)
+					score += 10
+					break
+	else:
+		if blocks[cell.y][cell.x]:
+			blocks[cell.y][cell.x] = false
+			_drop_powerup(cell)
 	_play_sound("explosion")
 	for cell_pos in affected:
 		if cell_pos == player:
@@ -241,8 +274,38 @@ func _explode(index: int) -> void:
 			score += 100
 	blasts.append({"cells": affected, "time": BLAST_TIME})
 	if enemies.is_empty() and game_state == "playing":
-		_end_game("won", "MAZE CLEARED!")
+		message = "EXIT REVEALED! FIND THE DOOR"
 	queue_redraw()
+
+func _drop_powerup(cell: Vector2i) -> void:
+	if cell == exit_cell:
+		return
+	if randf() < 0.20:
+		var kind := "four_way" if randf() < 0.5 else "range"
+		powerups.append({"cell": cell, "kind": kind})
+
+func _collect_powerup(cell: Vector2i) -> void:
+	for i in range(powerups.size() - 1, -1, -1):
+		if powerups[i].cell != cell:
+			continue
+		var kind: String = powerups[i].kind
+		if kind == "four_way":
+			four_way_enabled = true
+			message = "FOUR-WAY BOMBS! RANGE %d" % blast_range
+			_play_sound("select")
+		else:
+			blast_range = mini(blast_range + 1, MAX_BLAST_RANGE)
+			message = "BLAST RANGE: %d" % blast_range
+			_play_sound("select")
+		powerups.remove_at(i)
+		break
+
+func _advance_level() -> void:
+	if level >= TOTAL_LEVELS:
+		_end_game("won", "ALL 10 LEVELS CLEARED!")
+		return
+	level += 1
+	_build_level()
 
 func _move_enemies() -> void:
 	for i in range(enemies.size()):
@@ -378,7 +441,7 @@ func _draw_title() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(56, 590), "RETRO PIXEL MAZE • MADE FOR ANDROID", HORIZONTAL_ALIGNMENT_LEFT, 390, 11, Color("#66889c"))
 
 func _draw_board() -> void:
-	draw_string(ThemeDB.fallback_font, Vector2(32, 70), message, HORIZONTAL_ALIGNMENT_LEFT, 300, 10, Color("#f4f7fa"))
+	draw_string(ThemeDB.fallback_font, Vector2(32, 70), "LEVEL %d/10  %s" % [level, message], HORIZONTAL_ALIGNMENT_LEFT, 380, 10, Color("#f4f7fa"))
 	for y in range(ROWS):
 		for x in range(COLS):
 			var rect := Rect2(BOARD_X + x * TILE, BOARD_Y + y * TILE, TILE, TILE)
@@ -395,6 +458,19 @@ func _draw_board() -> void:
 					draw_rect(Rect2(rect.position + Vector2(4, 5), Vector2(10, 5)), Color("#e6a05d"))
 					draw_rect(Rect2(rect.position + Vector2(17, 19), Vector2(10, 5)), Color("#8b4d39"))
 					draw_line(rect.position + Vector2(16, 4), rect.position + Vector2(16, 27), Color("#8b4d39"), 2)
+	for powerup in powerups:
+		var pc := _center(powerup.cell)
+		if powerup.kind == "range":
+			draw_rect(Rect2(pc + Vector2(-9, -9), Vector2(18, 18)), Color("#54d6ff"))
+			draw_string(ThemeDB.fallback_font, pc + Vector2(-5, 5), "R", HORIZONTAL_ALIGNMENT_LEFT, 12, 13, Color("#102030"))
+		else:
+			draw_rect(Rect2(pc + Vector2(-9, -9), Vector2(18, 18)), Color("#d77cff"))
+			draw_string(ThemeDB.fallback_font, pc + Vector2(-5, 5), "4", HORIZONTAL_ALIGNMENT_LEFT, 12, 13, Color("#102030"))
+	if blocks[exit_cell.y][exit_cell.x] == false and enemies.is_empty():
+		var door_rect := Rect2(BOARD_X + exit_cell.x * TILE + 5, BOARD_Y + exit_cell.y * TILE + 3, 22, 27)
+		draw_rect(door_rect, Color("#f5d76e"))
+		draw_rect(door_rect.grow(-4), Color("#7b5428"))
+		draw_circle(door_rect.position + Vector2(16, 14), 2, Color("#ffe66d"))
 	for bomb in bombs:
 		var center := _center(bomb.cell)
 		draw_circle(center, 11, Color("#15171d"))
@@ -415,7 +491,7 @@ func _draw_controls() -> void:
 	_draw_button(Rect2(38, 532, 64, 52), "<", false)
 	_draw_button(Rect2(166, 532, 64, 52), ">", false)
 	_draw_button(Rect2(102, 478, 64, 52), "^", false)
-	_draw_button(Rect2(102, 586, 64, 42), "v", false)
+	_draw_button(Rect2(102, 586, 64, 52), "v", false)
 	_draw_button(Rect2(330, 510, 110, 100), "BOMB", true)
 	draw_string(ThemeDB.fallback_font, Vector2(34, 496), "MOVE", HORIZONTAL_ALIGNMENT_LEFT, 80, 10, Color("#a9c6d4"))
 	draw_string(ThemeDB.fallback_font, Vector2(350, 626), "TAP TO PLANT", HORIZONTAL_ALIGNMENT_LEFT, 100, 10, Color("#a9c6d4"))
