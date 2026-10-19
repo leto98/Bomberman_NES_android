@@ -20,6 +20,7 @@ var enemies: Array[Vector2i] = []
 var powerups: Array = []
 var exit_cell := Vector2i(11, 9)
 var level := 1
+var lives := 3
 var blast_range := 1
 var player := PLAYER_START
 var player_facing := Vector2i.RIGHT
@@ -160,8 +161,9 @@ func _handle_menu_pointer(pos: Vector2) -> void:
 
 func _start_game() -> void:
 	level = 1
+	lives = 3
 	blast_range = 1
-	_build_level() 
+	_build_level()
 
 func _build_level() -> void:
 	walls.clear()
@@ -177,7 +179,7 @@ func _build_level() -> void:
 		score = 0
 	held_touch_dir = Vector2i.ZERO
 	powerups.clear()
-	message = "LEVEL %d: DEFEAT ENEMIES" % level
+	message = "LIVES %d: DEFEAT ENEMIES" % lives
 	for y in range(ROWS):
 		var wall_row: Array = []
 		var block_row: Array = []
@@ -224,7 +226,7 @@ func _try_move(dir: Vector2i) -> void:
 		_play_sound("move")
 		_collect_powerup(player)
 		if enemies.has(player):
-			_end_game("lost", "CAUGHT!")
+			_handle_player_death("CAUGHT!")
 		elif player == exit_cell and enemies.is_empty():
 			_advance_level()
 	queue_redraw()
@@ -270,7 +272,7 @@ func _explode(index: int) -> void:
 	_play_sound("explosion")
 	for cell_pos in affected:
 		if cell_pos == player:
-			_end_game("lost", "BOOM!")
+			_handle_player_death("BOOM!")
 		if enemies.has(cell_pos):
 			enemies.erase(cell_pos)
 			score += 100
@@ -301,6 +303,7 @@ func _advance_level() -> void:
 		_end_game("won", "ALL 10 LEVELS CLEARED!")
 		return
 	level += 1
+	lives = 3
 	_build_level()
 
 func _move_enemies() -> void:
@@ -316,6 +319,15 @@ func _move_enemies() -> void:
 			if _is_open(target) and not enemies.has(target):
 				enemies[i] = target
 				break
+
+
+func _handle_player_death(reason: String) -> void:
+	lives -= 1
+	if lives > 0:
+		message = "LIFE LOST: %d LEFT" % lives
+		_build_level()
+		return
+	_end_game("lost", "%s - GAME OVER" % reason)
 
 func _end_game(result: String, text_value: String) -> void:
 	game_state = result
@@ -438,7 +450,7 @@ func _draw_title() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(56, 612), "RETRO PIXEL MAZE • MADE FOR ANDROID", HORIZONTAL_ALIGNMENT_LEFT, 390, 11, Color("#66889c"))
 
 func _draw_board() -> void:
-	draw_string(ThemeDB.fallback_font, Vector2(32, 70), "LEVEL %d/10  %s" % [level, message], HORIZONTAL_ALIGNMENT_LEFT, 380, 10, Color("#f4f7fa"))
+	draw_string(ThemeDB.fallback_font, Vector2(32, 70), "LEVEL %d/10  LIVES %d  %s" % [level, lives, message], HORIZONTAL_ALIGNMENT_LEFT, 430, 10, Color("#f4f7fa"))
 	for y in range(ROWS):
 		for x in range(COLS):
 			var rect := Rect2(BOARD_X + x * TILE, BOARD_Y + y * TILE, TILE, TILE)
