@@ -23,12 +23,20 @@ jobs:
           mkdir -p "$HOME/.android"
           cp /root/debug.keystore "$HOME/.android/debug.keystore"
           sed -i 's@/root/debug.keystore@'$HOME'/.android/debug.keystore@g' "$HOME/.config/godot/editor_settings-4.4.tres"
+          echo "=== Android SDK and Java settings ==="
+          grep -Ei 'android|keystore|jdk|java' "$HOME/.config/godot/editor_settings-4.4.tres" || true
+          echo "=== Debug keystore ==="
+          ls -l "$HOME/.android/debug.keystore"
+          echo "=== Export templates ==="
+          find "$HOME/.local/share/godot/export_templates/4.4.1.stable" -maxdepth 1 -type f -printf '%f (%s bytes)\n'
+          echo "=== Android SDK directories ==="
+          ls -ld /usr/lib/android-sdk /usr/lib/android-sdk/build-tools /usr/lib/jvm 2>&1 || true
       - name: Create build directory
         run: mkdir -p build
       - name: Import project resources
         run: godot --headless --editor --path . --quit
-      - name: Export Android APK
-        run: godot --headless --path . --export-debug "Android" build/Bomberman8Bit.apk
+      - name: Export Android APK with verbose diagnostics
+        run: godot --headless --verbose --path . --export-debug "Android" build/Bomberman8Bit.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
