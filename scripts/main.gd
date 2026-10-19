@@ -136,6 +136,8 @@ func _handle_menu_pointer(pos: Vector2) -> void:
 				_play_sound("select")
 		elif Rect2(120, 426, 240, 50).has_point(pos):
 			_toggle_sound()
+		elif Rect2(120, 486, 240, 50).has_point(pos):
+			get_tree().quit()
 	elif game_state == "paused":
 		if Rect2(120, 286, 240, 48).has_point(pos):
 			game_state = "playing"
@@ -441,9 +443,10 @@ func _draw_title() -> void:
 	_draw_button(Rect2(120, 306, 240, 50), "PLAY", true)
 	_draw_button(Rect2(120, 366, 240, 50), "RESUME" if has_saved_game else "RESUME (NOT STARTED)", has_saved_game)
 	_draw_button(Rect2(120, 426, 240, 50), _sound_label(), false)
-	draw_string(ThemeDB.fallback_font, Vector2(56, 520), "MOVE: TAP OR HOLD THE D-PAD", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
-	draw_string(ThemeDB.fallback_font, Vector2(56, 544), "BOMB: TAP THE BOMB BUTTON", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
-	draw_string(ThemeDB.fallback_font, Vector2(56, 590), "RETRO PIXEL MAZE • MADE FOR ANDROID", HORIZONTAL_ALIGNMENT_LEFT, 390, 11, Color("#66889c"))
+	_draw_button(Rect2(120, 486, 240, 50), "EXIT GAME", false)
+	draw_string(ThemeDB.fallback_font, Vector2(56, 556), "MOVE: TAP OR HOLD THE D-PAD", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(56, 578), "BOMB: TAP THE BOMB BUTTON", HORIZONTAL_ALIGNMENT_LEFT, 380, 13, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(56, 612), "RETRO PIXEL MAZE • MADE FOR ANDROID", HORIZONTAL_ALIGNMENT_LEFT, 390, 11, Color("#66889c"))
 
 func _draw_board() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(32, 70), "LEVEL %d/10  %s" % [level, message], HORIZONTAL_ALIGNMENT_LEFT, 380, 10, Color("#f4f7fa"))
