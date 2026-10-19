@@ -3,7 +3,12 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'releases/**'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -73,6 +78,17 @@ jobs:
         run: |
           test -s build/Bomberman8Bit.apk
           ls -lh build/Bomberman8Bit.apk
+
+      - name: Copy latest APK into repository for Code ZIP
+        run: |
+          mkdir -p releases
+          cp build/Bomberman8Bit.apk releases/Bomberman8Bit.apk
+
+      - name: Commit latest APK to main
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'Update latest built Android APK'
+          file_pattern: 'releases/Bomberman8Bit.apk'
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
