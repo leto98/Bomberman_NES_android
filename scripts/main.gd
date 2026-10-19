@@ -5,9 +5,9 @@ const COLS := 13
 const ROWS := 11
 const BOARD_X := 32
 const BOARD_Y := 76
-const MOVE_DELAY := 0.14
+const MOVE_DELAY := 0.12
 const BOMB_FUSE := 2.5
-const BLAST_TIME := 0.38
+const BLAST_TIME := 0.60
 const PLAYER_START := Vector2i(1, 1)
 const TOTAL_LEVELS := 10
 const MAX_BLAST_RANGE := 2
@@ -116,15 +116,14 @@ func _handle_pointer(pos: Vector2, is_touch: bool) -> void:
 		_pause_game()
 
 func _direction_at(pos: Vector2) -> Vector2i:
-	if Rect2(38, 532, 64, 52).has_point(pos):
-		return Vector2i.LEFT
-	if Rect2(166, 532, 64, 52).has_point(pos):
-		return Vector2i.RIGHT
-	if Rect2(102, 478, 64, 52).has_point(pos):
-		return Vector2i.UP
-	if Rect2(102, 586, 64, 52).has_point(pos):
-		return Vector2i.DOWN
-	return Vector2i.ZERO
+	# Forgiving touch pad: anywhere inside the large pad zone selects the nearest direction.
+	if not Rect2(18, 456, 250, 184).has_point(pos):
+		return Vector2i.ZERO
+	var center := Vector2(134, 554)
+	var offset := pos - center
+	if absf(offset.x) > absf(offset.y):
+		return Vector2i.RIGHT if offset.x >= 0.0 else Vector2i.LEFT
+	return Vector2i.DOWN if offset.y >= 0.0 else Vector2i.UP
 
 func _handle_menu_pointer(pos: Vector2) -> void:
 	if game_state == "title":
@@ -252,8 +251,13 @@ func _place_bomb() -> void:
 func _explode(index: int) -> void:
 	var cell: Vector2i = bombs[index].cell
 	bombs.remove_at(index)
+	# Always include the bomb tile so every detonation has a visible centre.
 	var affected: Array[Vector2i] = [cell]
-	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT] if four_way_enabled else [player_facing]
+	var directions: Array[Vector2i] = []
+	if four_way_enabled:
+		directions = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	else:
+		directions = [player_facing]
 	for dir in directions:
 		for distance in range(1, blast_range + 1):
 			var p: Vector2i = cell + dir * distance
@@ -488,10 +492,13 @@ func _draw_board() -> void:
 	_draw_player()
 
 func _draw_controls() -> void:
-	_draw_button(Rect2(38, 532, 64, 52), "<", false)
-	_draw_button(Rect2(166, 532, 64, 52), ">", false)
-	_draw_button(Rect2(102, 478, 64, 52), "^", false)
-	_draw_button(Rect2(102, 586, 64, 52), "v", false)
+	# Large, forgiving D-pad background with broad directional zones.
+	draw_rect(Rect2(18, 456, 250, 184), Color("#17283a"))
+	draw_rect(Rect2(24, 462, 238, 172), Color("#20394a"))
+	_draw_button(Rect2(38, 532, 82, 56), "<", false)
+	_draw_button(Rect2(148, 532, 82, 56), ">", false)
+	_draw_button(Rect2(92, 474, 82, 56), "^", false)
+	_draw_button(Rect2(92, 590, 82, 42), "v", false)
 	_draw_button(Rect2(330, 510, 110, 100), "BOMB", true)
 	draw_string(ThemeDB.fallback_font, Vector2(34, 496), "MOVE", HORIZONTAL_ALIGNMENT_LEFT, 80, 10, Color("#a9c6d4"))
 	draw_string(ThemeDB.fallback_font, Vector2(350, 626), "TAP TO PLANT", HORIZONTAL_ALIGNMENT_LEFT, 100, 10, Color("#a9c6d4"))
