@@ -316,16 +316,71 @@ func _advance_level() -> void:
 func _move_enemies() -> void:
 	for i in range(enemies.size()):
 		var enemy: Vector2i = enemies[i]
-		var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-		choices.shuffle()
-		for direction in choices:
-			var target: Vector2i = enemy + direction
-			if target == player:
+		var next_step := Vector2i.ZERO
+		if _enemy_can_see_player(enemy):
+			next_step = _get_chase_step(enemy)
+		if next_step == Vector2i.ZERO:
+			var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+			choices.shuffle()
+			for direction in choices:
+				var target: Vector2i = enemy + direction
+				if target == player:
+					_end_game("lost", "CAUGHT!")
+					return
+				if _is_open(target) and not enemies.has(target):
+					next_step = target
+					break
+		if next_step != Vector2i.ZERO:
+			if next_step == player:
 				_end_game("lost", "CAUGHT!")
 				return
-			if _is_open(target) and not enemies.has(target):
-				enemies[i] = target
-				break
+			enemies[i] = next_step
+
+func _enemy_can_see_player(enemy: Vector2i) -> bool:
+	# Enemies spot the player along a clear horizontal or vertical corridor.
+	if enemy.x == player.x:
+		var step_y := 1 if player.y > enemy.y else -1
+		for y in range(enemy.y + step_y, player.y, step_y):
+			if walls[y][enemy.x] or blocks[y][enemy.x]:
+				return false
+		return true
+	if enemy.y == player.y:
+		var step_x := 1 if player.x > enemy.x else -1
+		for x in range(enemy.x + step_x, player.x, step_x):
+			if walls[enemy.y][x] or blocks[enemy.y][x]:
+				return false
+		return true
+	return false
+
+func _get_chase_step(start: Vector2i) -> Vector2i:
+	# Breadth-first search finds a shortest walkable route toward the player.
+	var queue: Array[Vector2i] = [start]
+	var came_from: Dictionary = {start: start}
+	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	var found := false
+	var head := 0
+	while head < queue.size():
+		var current: Vector2i = queue[head]
+		head += 1
+		if current == player:
+			found = true
+			break
+		for direction in directions:
+			var target: Vector2i = current + direction
+			if came_from.has(target):
+				continue
+			if target != player and (not _is_open(target) or enemies.has(target)):
+				continue
+			if target == player and enemies.has(target):
+				continue
+			came_from[target] = current
+			queue.append(target)
+	if not found:
+		return Vector2i.ZERO
+	var step := player
+	while came_from[step] != start:
+		step = came_from[step]
+	return step
 
 
 func _handle_player_death(reason: String) -> void:
