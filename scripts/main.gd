@@ -258,7 +258,7 @@ func _explode(index: int) -> void:
 	if four_way_enabled:
 		directions = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 	else:
-		directions = [player_facing]
+		directions = [player_facing, -player_facing]
 	for dir in directions:
 		for distance in range(1, blast_range + 1):
 			var p: Vector2i = cell + dir * distance
