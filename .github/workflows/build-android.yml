@@ -1,0 +1,29 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Export Android APK
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Create build directory
+        run: mkdir -p build
+      - name: Import project resources
+        run: godot --headless --editor --path . --quit
+      - name: Export Android APK
+        run: godot --headless --path . --export-debug "Android" build/Bomberman8Bit.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bomberman8Bit-APK
+          path: build/Bomberman8Bit.apk
+          if-no-files-found: error
+          retention-days: 14
