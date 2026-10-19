@@ -62,6 +62,9 @@ func _process(delta: float) -> void:
 
 	queue_redraw()
 
+func _get_held_direction() -> Vector2i:
+	return held_touch_dir
+
 func _input(event: InputEvent) -> void:
 	# Android system Back key only; gameplay itself uses touchscreen controls.
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_BACK:
@@ -423,7 +426,7 @@ func _draw_overlay(title_text: String, labels: Array, y_positions: Array) -> voi
 	draw_string(ThemeDB.fallback_font, Vector2(65, 258), title_text, HORIZONTAL_ALIGNMENT_LEFT, 350, 25, Color("#ffe66d"))
 	for i in range(labels.size()):
 		_draw_button(Rect2(120, y_positions[i], 240, 48), str(labels[i]), i == 0)
-	draw_string(ThemeDB.fallback_font, Vector2(105, 535), "ESC / P TO PAUSE", HORIZONTAL_ALIGNMENT_LEFT, 270, 12, Color("#a9c6d4"))
+	draw_string(ThemeDB.fallback_font, Vector2(105, 535), "ANDROID BACK TO PAUSE", HORIZONTAL_ALIGNMENT_LEFT, 270, 12, Color("#a9c6d4"))
 
 func _draw_button(rect: Rect2, label: String, highlighted: bool) -> void:
 	draw_rect(rect, Color("#b96d42") if highlighted else Color("#254454"))
