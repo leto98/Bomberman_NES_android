@@ -6,7 +6,7 @@ const ROWS := 11
 const BOARD_X := 32
 const BOARD_Y := 76
 const MOVE_DELAY := 0.14
-const BOMB_FUSE := 1.35
+const BOMB_FUSE := 2.5
 const BLAST_TIME := 0.38
 const PLAYER_START := Vector2i(1, 1)
 
