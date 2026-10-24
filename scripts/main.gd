@@ -322,35 +322,93 @@ func _advance_level() -> void:
 	_build_level(true)
 
 func _move_enemies() -> void:
+	# Each enemy keeps a personality slot: Hunter, Ambusher, Tactician, Shy, then Roamers.
+	# The first living enemy is always the persistent Hunter.
 	for i in range(enemies.size()):
 		var enemy: Vector2i = enemies[i]
 		var next_step := Vector2i.ZERO
-		# The first living enemy is the high-IQ hunter on every level.
-		# It uses shortest-path BFS every turn, even without line of sight,
-		# so it keeps pursuing the player through the maze instead of wandering.
-		var is_hunter := i == 0
-		if is_hunter or _enemy_can_see_player(enemy):
-			next_step = _get_chase_step(enemy)
-		# Other enemies retain the existing line-of-sight chase and roaming AI.
-		if next_step == Vector2i.ZERO and not is_hunter:
-			var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-			choices.shuffle()
-			for direction in choices:
-				var target: Vector2i = enemy + direction
-				if target == player:
-					enemies[i] = player
-					_begin_player_death("CAUGHT!")
-					return
-				if _is_open(target) and not enemies.has(target):
-					next_step = target
-					break
-		# If the hunter temporarily has no path, leave it in place and retry next turn.
+		var role := i % 5
+		if i == 0:
+			# HUNTER (Blinky): shortest-path pursuit, even without line of sight.
+			next_step = _get_path_step(enemy, player)
+		elif role == 1:
+			# AMBUSHER (Pinky): aim two tiles ahead of the player's facing direction.
+			var target := _get_ambush_target()
+			next_step = _get_path_step(enemy, target)
+			if next_step == Vector2i.ZERO:
+				next_step = _get_path_step(enemy, player)
+		elif role == 2:
+			# TACTICIAN (Inky): use the Hunter's position and the player's direction
+			# to aim beyond the player, creating a pincer rather than following directly.
+			var hunter_pos: Vector2i = enemies[0]
+			var ahead := _get_ambush_target()
+			var target := ahead + (ahead - hunter_pos)
+			target.x = clampi(target.x, 1, COLS - 2)
+			target.y = clampi(target.y, 1, ROWS - 2)
+			next_step = _get_path_step(enemy, target)
+			if next_step == Vector2i.ZERO:
+				next_step = _get_path_step(enemy, player)
+		elif role == 3:
+			# SHY (Clyde): pursue from a distance, retreat when close.
+			if _grid_distance(enemy, player) <= 4:
+				next_step = _get_retreat_step(enemy)
+			else:
+				next_step = _get_path_step(enemy, player)
+		else:
+			# ROAMER: react to a clear corridor, otherwise choose a legal random move.
+			if _enemy_can_see_player(enemy):
+				next_step = _get_path_step(enemy, player)
+			if next_step == Vector2i.ZERO:
+				var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+				choices.shuffle()
+				for direction in choices:
+					var target: Vector2i = enemy + direction
+					if target == player:
+						enemies[i] = player
+						_begin_player_death("CAUGHT!")
+						return
+					if _is_open(target) and not enemies.has(target):
+						next_step = target
+						break
+		if next_step == player:
+			enemies[i] = player
+			_begin_player_death("CAUGHT!")
+			return
 		if next_step != Vector2i.ZERO:
-			if next_step == player:
-				enemies[i] = player
-				_begin_player_death("CAUGHT!")
-				return
 			enemies[i] = next_step
+
+func _get_ambush_target() -> Vector2i:
+	# Look ahead up to two tiles, stopping before walls or destructible blocks.
+	var target := player
+	for step in range(2):
+		var candidate := target + player_facing
+		if candidate.x <= 0 or candidate.y <= 0 or candidate.x >= COLS - 1 or candidate.y >= ROWS - 1:
+			break
+		if walls[candidate.y][candidate.x] or blocks[candidate.y][candidate.x]:
+			break
+		target = candidate
+	return target
+
+func _grid_distance(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
+
+func _get_retreat_step(start: Vector2i) -> Vector2i:
+	# Move to a legal neighboring tile that maximizes distance from the player.
+	var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	choices.shuffle()
+	var best := Vector2i.ZERO
+	var best_distance := _grid_distance(start, player)
+	for direction in choices:
+		var target: Vector2i = start + direction
+		if target == player:
+			return player
+		if not _is_open(target) or enemies.has(target):
+			continue
+		var distance := _grid_distance(target, player)
+		if distance > best_distance:
+			best_distance = distance
+			best = target
+	return best
 
 func _enemy_can_see_player(enemy: Vector2i) -> bool:
 	# Enemies spot the player along a clear horizontal or vertical corridor.
@@ -368,8 +426,11 @@ func _enemy_can_see_player(enemy: Vector2i) -> bool:
 		return true
 	return false
 
-func _get_chase_step(start: Vector2i) -> Vector2i:
-	# Breadth-first search finds a shortest walkable route toward the player.
+func _get_path_step(start: Vector2i, destination: Vector2i) -> Vector2i:
+	# Breadth-first search finds a shortest walkable route to the requested target.
+	# If a personality's target is blocked, callers fall back to the player's tile.
+	if start == destination:
+		return Vector2i.ZERO
 	var queue: Array[Vector2i] = [start]
 	var came_from: Dictionary = {start: start}
 	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
@@ -378,7 +439,7 @@ func _get_chase_step(start: Vector2i) -> Vector2i:
 	while head < queue.size():
 		var current: Vector2i = queue[head]
 		head += 1
-		if current == player:
+		if current == destination:
 			found = true
 			break
 		for direction in directions:
@@ -393,11 +454,10 @@ func _get_chase_step(start: Vector2i) -> Vector2i:
 			queue.append(target)
 	if not found:
 		return Vector2i.ZERO
-	var step := player
+	var step := destination
 	while came_from[step] != start:
 		step = came_from[step]
 	return step
-
 
 func _begin_player_death(reason: String) -> void:
 	if game_state != "playing":
