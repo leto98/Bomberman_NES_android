@@ -325,9 +325,14 @@ func _move_enemies() -> void:
 	for i in range(enemies.size()):
 		var enemy: Vector2i = enemies[i]
 		var next_step := Vector2i.ZERO
-		if _enemy_can_see_player(enemy):
+		# The first living enemy is the high-IQ hunter on every level.
+		# It uses shortest-path BFS every turn, even without line of sight,
+		# so it keeps pursuing the player through the maze instead of wandering.
+		var is_hunter := i == 0
+		if is_hunter or _enemy_can_see_player(enemy):
 			next_step = _get_chase_step(enemy)
-		if next_step == Vector2i.ZERO:
+		# Other enemies retain the existing line-of-sight chase and roaming AI.
+		if next_step == Vector2i.ZERO and not is_hunter:
 			var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 			choices.shuffle()
 			for direction in choices:
@@ -339,6 +344,7 @@ func _move_enemies() -> void:
 				if _is_open(target) and not enemies.has(target):
 					next_step = target
 					break
+		# If the hunter temporarily has no path, leave it in place and retry next turn.
 		if next_step != Vector2i.ZERO:
 			if next_step == player:
 				enemies[i] = player
