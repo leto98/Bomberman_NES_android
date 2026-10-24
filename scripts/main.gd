@@ -322,24 +322,23 @@ func _advance_level() -> void:
 	_build_level(true)
 
 func _move_enemies() -> void:
-	# Each enemy keeps a personality slot: Hunter, Ambusher, Tactician, Shy, then Roamers.
-	# The first living enemy is always the persistent Hunter.
+	# Every enemy attempts a move on every enemy turn. Personality changes its
+	# preferred target, but no role intentionally waits when a legal move exists.
 	for i in range(enemies.size()):
 		var enemy: Vector2i = enemies[i]
 		var next_step := Vector2i.ZERO
 		var role := i % 5
 		if i == 0:
-			# HUNTER (Blinky): shortest-path pursuit, even without line of sight.
+			# HUNTER (Blinky): persistent shortest-path pursuit.
 			next_step = _get_path_step(enemy, player)
 		elif role == 1:
-			# AMBUSHER (Pinky): aim two tiles ahead of the player's facing direction.
+			# AMBUSHER (Pinky): target up to two tiles ahead of the player.
 			var target := _get_ambush_target()
 			next_step = _get_path_step(enemy, target)
 			if next_step == Vector2i.ZERO:
 				next_step = _get_path_step(enemy, player)
 		elif role == 2:
-			# TACTICIAN (Inky): use the Hunter's position and the player's direction
-			# to aim beyond the player, creating a pincer rather than following directly.
+			# TACTICIAN (Inky): approach from a flanking angle.
 			var hunter_pos: Vector2i = enemies[0]
 			var ahead := _get_ambush_target()
 			var target := ahead + (ahead - hunter_pos)
@@ -349,33 +348,37 @@ func _move_enemies() -> void:
 			if next_step == Vector2i.ZERO:
 				next_step = _get_path_step(enemy, player)
 		elif role == 3:
-			# SHY (Clyde): pursue from a distance, retreat when close.
+			# SHY (Clyde): retreat when close; chase when far.
 			if _grid_distance(enemy, player) <= 4:
 				next_step = _get_retreat_step(enemy)
 			else:
 				next_step = _get_path_step(enemy, player)
 		else:
-			# ROAMER: react to a clear corridor, otherwise choose a legal random move.
+			# ROAMER: chase if visible, otherwise roam randomly.
 			if _enemy_can_see_player(enemy):
 				next_step = _get_path_step(enemy, player)
 			if next_step == Vector2i.ZERO:
-				var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-				choices.shuffle()
-				for direction in choices:
-					var target: Vector2i = enemy + direction
-					if target == player:
-						enemies[i] = player
-						_begin_player_death("CAUGHT!")
-						return
-					if _is_open(target) and not enemies.has(target):
-						next_step = target
-						break
+				next_step = _get_random_enemy_step(enemy)
+		# Universal movement fallback: no role should idle if a legal move exists.
+		if next_step == Vector2i.ZERO:
+			next_step = _get_random_enemy_step(enemy)
 		if next_step == player:
 			enemies[i] = player
 			_begin_player_death("CAUGHT!")
 			return
 		if next_step != Vector2i.ZERO:
 			enemies[i] = next_step
+
+func _get_random_enemy_step(enemy: Vector2i) -> Vector2i:
+	var choices: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	choices.shuffle()
+	for direction in choices:
+		var target: Vector2i = enemy + direction
+		if target == player:
+			return player
+		if _is_open(target) and not enemies.has(target):
+			return target
+	return Vector2i.ZERO
 
 func _get_ambush_target() -> Vector2i:
 	# Look ahead up to two tiles, stopping before walls or destructible blocks.
