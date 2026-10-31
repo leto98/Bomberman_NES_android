@@ -79,19 +79,15 @@ jobs:
           test -s build/Bomberman8Bit.apk
           ls -lh build/Bomberman8Bit.apk
 
-      - name: Copy latest APK into repository for Code ZIP
-        run: |
-          mkdir -p releases
-          cp build/Bomberman8Bit.apk releases/Bomberman8Bit.apk
-
-      - name: Mark repository as safe for Git
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Commit latest APK to main
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
         with:
-          commit_message: 'Update latest built Android APK'
-          file_pattern: 'releases/Bomberman8Bit.apk'
+          tag_name: latest
+          name: Latest build
+          body: "Automated build from ${{ github.sha }}"
+          target_commitish: ${{ github.sha }}
+          files: build/Bomberman8Bit.apk
+          overwrite_files: true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
